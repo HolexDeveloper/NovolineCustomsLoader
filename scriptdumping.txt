@@ -1,0 +1,10 @@
+-- language: Lua, environment: Roblox executor (requires setclipboard)
+local dumped = {}
+for _, obj in ipairs(game:GetDescendants()) do
+    if pcall(function() return obj.ClassName end) and obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
+        local src = pcall(function() return obj.Source end)
+        if src then table.insert(dumped, obj:GetFullName() .. ":\n" .. tostring(src)) end
+        task.wait(0.1)
+    end
+end
+setclipboard(table.concat(dumped, "\n\n---\n\n"))

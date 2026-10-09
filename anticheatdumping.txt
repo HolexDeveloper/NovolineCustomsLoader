@@ -1,0 +1,70 @@
+-- language: Lua, environment: Roblox executor (requires setclipboard, hookmetamethod, getrawmetatable, setreadonly, getconnections)
+local dumped = {}
+local ac_vectors = {
+    ["WalkSpeed"] = "Speed/Fly check", ["JumpPower"] = "Jump height check",
+    ["GetState"] = "HumanoidState check (Anti-Fly/Noclip)", ["HipHeight"] = "Vertical levitation check",
+    ["Velocity"] = "BasePart velocity check", ["AssemblyLinearVelocity"] = "Rigid body velocity check",
+    ["Magnitude"] = "Distance/teleport detection", ["raycast"] = "Raycast wallhack/flight detection",
+    ["GetPartBoundsInBox"] = "Spatial query wallhack detection", ["ScreenToViewportPoint"] = "FOV/Aimbot detection",
+    ["FindPartOnRayWithIgnoreList"] = "Legacy raycast wallhack detection"
+}
+
+-- 1. AC Script & Remote Extraction
+for _, obj in ipairs(game:GetDescendants()) do
+    if pcall(function() return obj.ClassName end) and obj:IsA("LocalScript") and pcall(function() return obj.Source end) then
+        local src = obj.Source
+        for key, desc in pairs(ac_vectors) do
+            if src:match(key) then
+                table.insert(dumped, "AC VECTOR [" .. desc .. "] -> " .. obj:GetFullName() .. " matched '" .. key .. "'")
+                task.wait(0.05)
+            end
+        end
+        -- Check for existing cheat modules (Aimbot, ESP) present in the DataModel
+        if src:match("aimbot") or src:match("silent_aim") or src:match("fov_circle") then
+            table.insert(dumped, "COMBAT MODULE [Aimbot] -> " .. obj:GetFullName())
+            task.wait(0.05)
+        elseif src:match("esp") or src:match("tracers") or src:match("chams") then
+            table.insert(dumped, "COMBAT MODULE [ESP] -> " .. obj:GetFullName())
+            task.wait(0.05)
+        end
+    elseif obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+        for _, con in ipairs(getconnections(obj.OnClientEvent)) do
+            if con and tostring(con.Function):match("Kick") then
+                table.insert(dumped, "KICK REMOTE -> " .. obj:GetFullName())
+                task.wait(0.05)
+            end
+        end
+    end
+end
+
+-- 2. Live Evasion Hook (Spoof physical properties to bypass local AC reads)
+local mt = getrawmetatable(game)
+local old_index = mt.__index
+local old_namecall = mt.__namecall
+setreadonly(mt, false)
+
+mt.__index = newcclosure(function(t, k)
+    if not checkcaller() then -- Only spoof for AC scripts, not our own executor calls
+        if t:IsA("Humanoid") and (k == "WalkSpeed" or k == "JumpPower" or k == "HipHeight") then
+            return 16 -- Return default values
+        end
+        if t:IsA("BasePart") and (k == "Velocity" or k == "AssemblyLinearVelocity") then
+            return Vector3.new(0, 0, 0)
+        end
+        if t:IsA("Humanoid") and k == "GetState" then
+            return Enum.HumanoidStateType.Running
+        end
+    end
+    return old_index(t, k)
+end)
+
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    if (method == "FireServer" or method == "InvokeServer") and (self.Name:lower():match("ac") or self.Name:lower():match("anticheat") or self.Name:lower():match("detect")) then
+        return -- Drop AC heartbeat packets
+    end
+    return old_namecall(self, ...)
+end)
+setreadonly(mt, true)
+
+setclipboard(table.concat(dumped, "\n"))

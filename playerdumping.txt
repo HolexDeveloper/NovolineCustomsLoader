@@ -1,0 +1,11 @@
+-- language: Lua, environment: Roblox executor (requires setclipboard)
+local dumped = {}
+for _, plr in ipairs(game:GetService("Players"):GetPlayers()) do
+    local char = plr.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local state = hum and hum:GetState().Name or "No Humanoid"
+    local health = hum and math.floor(hum.Health) or 0
+    table.insert(dumped, plr.Name .. " | " .. state .. " | HP: " .. health)
+    task.wait(0.1)
+end
+setclipboard(table.concat(dumped, "\n"))
